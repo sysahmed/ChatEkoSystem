@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang- "en">
+
+<head>
+    <script src="signalr.min.js"></script>
+    <script src="jquery.min.js"></script>
+    <script src="bootstrap.min.js"></script>
+    <link ref="stylesheet" href="boostrap.min.css">
+    <link ref="stylesheet" href="style.css">
+    <script>
+        $(document).ready(() => {
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("https://localhost:5001/messagehub")
+                .withAutomaticReconnect([1000, 2000, 3000])
+                .build();
+
+            async function start() {
+                try {
+                    await connection.start();
+                } catch (error) {
+                    setTimeout(() => start(), 2000);
+                }
+            }
+            start();
+
+            $(".disabled").attr("disabled", "disabled");
+            $(".users").click(function() {
+                $(".users").each((index, item) => {
+                    item.classList.remove("active");
+                });
+                $(this).addClass("active");
+            });
+            $("#btnSingUp").click(() => {
+                const nickName = $("txtNickName").val();
+                connection.invoke("GetNickName", nickName).catch(error => console.log(error));
+
+            });
+            connection.on("clientJoined", nickName => {
+                $("#clientStatusMessage").html(nickName + " is singup!");
+                $("#clientStatusMessage").fadeIn(2000, () => {
+                    setTimeout(() => {
+                        $("#clientStatusMessage").fadeOut(2000);
+                    });
+                })
+            });
+            connection.on("clients", clinets => {
+                const user = $(".users").clone();
+                $(".clients").append(user);
+            });
+
+            function animation() {
+                status.fadeIn(2000, () => {
+                    setTimeout(() => {
+                        status.fadeOut(2000);
+                    }, 2000)
+                });
+            }
+            const status = $("#status");
+            connection.onreconnecting(error => {
+                status.css("background-color", "blue");
+                status.css("color", "white");
+                status.html("Connection......");
+                animation();
+            });
+            connection.onreconnected(connectionId => {
+                status.css("background-color", "green");
+                status.css("color", "white");
+                status.html("Connection was succsessfully.");
+                animation();
+            });
+            connection.onclose(connectionId => {
+                status.css("background-color", "red");
+                status.css("color", "white");
+                status.html("Not connection!");
+                animation();
+            });
+
+            connection.on("userJoined", connectionId => {
+                status.html(connectionId + ' Connected.');
+                status.css("background-color", "green");
+                status.css("color", "white");
+                animation();
+            });
+            connection.on("userLeaved", connectionId => {
+                status.html(connectionId + ' Disconnected.');
+                status.css("background-color", "red");
+                status.css("color", "white");
+                animation();
+            });
+
+            connection.on("clients", clientsData => {
+                let text = "";
+                $.each(clientsData, (index, item) => {
+                    text += +'<li>' +
+                        item +
+                        '</li>';
+                });
+                $("#clients").html(text);
+            });
+            connection.on("clients", clients => {
+                $("#_clients").html("");
+                $.each(clients, (index, item) => {
+                    const user = $(".user").first().clone();
+                    user.removeClass("acrive");
+                    user.html(item.nickName);
+                    $("_clients").append(user);
+                });
+            });
+            connection.on("receiveMessage", message => {
+
+            });
+            $("#btnSend").click(() => {
+                const message = $("#txtMessage").val();
+                const clientName = $(".user.active").first().html();
+                const connectionIds = $("#connectionIds").val().split(",");
+                //connection.invoke("SendMessageAsync", message, connectionIds).catch(error => console.log('Error Message.' + error));
+                connection.invoke("SendMessageAsync", message, clientName); //.val(), connectionIds).catch(error => console.log('Error Message.' + error));
+            });
+
+            connection.on("receiveMessage", message => {
+                $("#messages").append(message + "<br>");
+            });
+            let _connectionId = "";
+            connection.on("getConnectionId", connectionId => {
+                _connectionId = connectionId;
+                $("#connectionId").html('Connection Id:' + connectionId);
+            });
+            $("#btnGroupSyngUp").click(() => {
+                let groupName = $("input[name=group]:checked").val();
+                connection.invoke("addGroup", _connectionId, groupName).catch(error => console.log('Error' + error));
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <div class="col-md-6">
+        <div class="alert alert-success" id="clientStatusMessage" style="display: none;">
+        </div>
+        <div class="list-group clients">
+            <a class="list-group-item list-group-item-action user active">
+grop
+            </a>
+
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div id="status" style="display: none;"></div>
+        <br>
+        <div style="background-color:black;color:white" id="connectionId">
+            <br>
+        </div>
+        <input type="radio" name="group" value="A"> A
+        <input type="radio" name="group" value="B "> B
+        <input type="radio" name="group" value="C"> C
+        <button id="btnGroupSyngUp">
+        Group SyngUp
+    </button>
+        <br>
+
+        <input placeholder="Message" type="text" id="txtMessage">
+        <br>
+        <textarea placeholder="connection Id" id="connectionIds" cols="30" rows="10"></textarea>
+        <button id="btnSend">Send</button>
+        <div id="messages"></div>
+        <div>
+            <ul id="clients">
+            </ul>
+        </div>
+    </div>
+</body>
+
+</html>
